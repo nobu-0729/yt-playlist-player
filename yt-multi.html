@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Multi Player</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono:wght@400&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424; --border: #2e2e2e;
+    --text: #f0f0f0; --muted: #888; --accent: #e8ff5a;
+    --font: 'DM Sans', sans-serif; --mono: 'DM Mono', monospace; --radius: 10px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; color: var(--accent); text-transform: uppercase; }
+  .layout { display: flex; flex: 1; height: calc(100vh - 53px); overflow: hidden; }
+  .player-side { flex: 1; display: flex; flex-direction: column; }
+  #player-wrap { flex: 1; background: #000; position: relative; }
+  #player-wrap iframe { width: 100%; height: 100%; border: none; }
+  .placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #555; }
+  .placeholder-icon { font-size: 48px; opacity: 0.3; }
+  .sidebar { width: 320px; border-left: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); overflow-y: auto; }
+
+  /* 共有URLエリア */
+  .share-area { padding: 10px 12px; border-bottom: 1px solid var(--border); background: rgba(232,255,90,0.08); display: none; }
+  .share-label { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .share-url-box { background: var(--surface2); border: 1px solid var(--accent); border-radius: var(--radius); color: var(--text); font-family: var(--mono); font-size: 10px; padding: 6px 8px; word-break: break-all; }
+  .copy-btn { width: 100%; margin-top: 5px; background: var(--accent); border: none; border-radius: var(--radius); color: #111; font-family: var(--font); font-size: 12px; font-weight: 500; padding: 6px; cursor: pointer; }
+  .copy-btn:hover { opacity: 0.85; }
+
+  /* 入力エリア */
+  .add-area { padding: 12px; border-bottom: 1px solid var(--border); }
+  .add-area label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 6px; }
+  .bulk-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--mono); font-size: 11px; padding: 8px 10px; resize: vertical; min-height: 80px; line-height: 1.6; transition: border-color 0.15s; }
+  .bulk-input:focus { outline: none; border-color: var(--accent); }
+  .bulk-input::placeholder { color: #555; }
+  .play-btn { width: 100%; margin-top: 6px; background: var(--accent); border: none; border-radius: var(--radius); color: #111; font-family: var(--font); font-size: 14px; font-weight: 500; padding: 10px; cursor: pointer; transition: opacity 0.15s; }
+  .play-btn:hover { opacity: 0.85; }
+
+  /* リスト表示 */
+  .list-area { padding: 12px; }
+  .list-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .vid-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .vid-item:last-child { border-bottom: none; }
+  .vid-num { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 18px; text-align: right; }
+  .vid-thumb { width: 44px; height: 30px; border-radius: 5px; object-fit: cover; background: var(--surface2); flex-shrink: 0; }
+  .vid-id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  @media (max-width: 640px) {
+    .layout { flex-direction: column; height: auto; }
+    .sidebar { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+    #player-wrap { min-height: 55vw; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">▶ YT Multi</div>
+</header>
+<div class="layout">
+  <div class="player-side">
+    <div id="player-wrap">
+      <div class="placeholder" id="placeholder">
+        <div class="placeholder-icon">▶</div>
+        <p>URLを入力して再生ボタンを押してください</p>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="share-area" id="share-area">
+      <div class="share-label">この組み合わせの共有URL</div>
+      <div class="share-url-box" id="share-url"></div>
+      <button class="copy-btn" onclick="copyUrl()">URLをコピー</button>
+    </div>
+    <div class="add-area">
+      <label>YouTube URL（1行1本）</label>
+      <textarea class="bulk-input" id="bulk-input" placeholder="https://youtu.be/...&#10;https://youtu.be/...&#10;https://youtu.be/..."></textarea>
+      <button class="play-btn" onclick="startPlay()">▶ 再生する</button>
+    </div>
+    <div class="list-area" id="list-area" style="display:none">
+      <div class="list-label">再生中のリスト</div>
+      <div id="vid-list"></div>
+    </div>
+  </div>
+</div>
+<script>
+var currentIds = [];
+
+function extractId(url) {
+  url = url.trim();
+  var p = [/[?&]v=([a-zA-Z0-9_-]{11})/, /youtu\.be\/([a-zA-Z0-9_-]{11})/, /embed\/([a-zA-Z0-9_-]{11})/, /^([a-zA-Z0-9_-]{11})$/];
+  for (var i = 0; i < p.length; i++) { var m = url.match(p[i]); if (m) return m[1]; }
+  return null;
+}
+
+function startPlay() {
+  var raw = document.getElementById('bulk-input').value.trim();
+  if (!raw) return;
+  var ids = [];
+  raw.split(/\n/).forEach(function(l) { var id = extractId(l); if (id && ids.indexOf(id) < 0) ids.push(id); });
+  if (!ids.length) { alert('有効なYouTube URLが見つかりませんでした。'); return; }
+  loadPlayer(ids);
+}
+
+function loadPlayer(ids) {
+  currentIds = ids;
+  var first = ids[0];
+  var rest = ids.slice(1).join(',');
+  var src = 'https://www.youtube.com/embed/' + first + '?autoplay=1&rel=0&modestbranding=1' + (rest ? '&playlist=' + rest : '');
+  document.getElementById('placeholder').style.display = 'none';
+  var wrap = document.getElementById('player-wrap');
+  var old = document.getElementById('yt-iframe');
+  if (old) old.remove();
+  var iframe = document.createElement('iframe');
+  iframe.id = 'yt-iframe';
+  iframe.src = src;
+  iframe.allow = 'autoplay; encrypted-media';
+  iframe.allowFullscreen = true;
+  iframe.style.cssText = 'width:100%;height:100%;border:none;';
+  wrap.appendChild(iframe);
+  updateShareUrl(ids);
+  renderList(ids);
+}
+
+function updateShareUrl(ids) {
+  var shareUrl = location.origin + location.pathname + '?v=' + ids.join(',');
+  document.getElementById('share-url').textContent = shareUrl;
+  document.getElementById('share-area').style.display = 'block';
+}
+
+function copyUrl() {
+  var url = document.getElementById('share-url').textContent;
+  navigator.clipboard.writeText(url).then(function() {
+    var btn = document.querySelector('.copy-btn');
+    btn.textContent = 'コピーしました！';
+    setTimeout(function() { btn.textContent = 'URLをコピー'; }, 2000);
+  });
+}
+
+function renderList(ids) {
+  var area = document.getElementById('list-area');
+  var list = document.getElementById('vid-list');
+  list.innerHTML = ids.map(function(id, i) {
+    return '<div class="vid-item">' +
+      '<span class="vid-num">' + (i+1) + '</span>' +
+      '<img class="vid-thumb" src="https://img.youtube.com/vi/' + id + '/default.jpg">' +
+      '<span class="vid-id">' + id + '</span>' +
+    '</div>';
+  }).join('');
+  area.style.display = 'block';
+}
+
+// URLパラメーターから自動読み込み
+(function() {
+  var params = new URLSearchParams(location.search);
+  var v = params.get('v');
+  if (!v) return;
+  var ids = v.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return /^[a-zA-Z0-9_-]{11}$/.test(s); });
+  if (!ids.length) return;
+  document.getElementById('bulk-input').value = ids.map(function(id) { return 'https://youtu.be/' + id; }).join('\n');
+  loadPlayer(ids);
+})();
+</script>
+</body>
+</html>
