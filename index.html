@@ -131,6 +131,7 @@
       <div id="check-items"></div>
       <div class="check-summary" id="check-summary"></div>
       <button class="confirm-btn" id="confirm-btn" onclick="confirmAdd()" style="display:none">OKの動画をプレイリストに追加 →</button>
+      <button class="confirm-btn" id="confirm-all-btn" onclick="confirmAddAll()" style="display:none;margin-top:4px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)">NGも含めてすべて追加</button>
     </div>
     <div class="playlist-header">
       <span class="playlist-title">プレイリスト</span>
@@ -143,7 +144,7 @@
 </div>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-var playlist=[],currentIndex=-1,player=null,playerReady=false,isPlaying=false,shuffleMode=false,pendingOk=[];
+var playlist=[],currentIndex=-1,player=null,playerReady=false,isPlaying=false,shuffleMode=false,pendingOk=[],pendingAll=[];
 
 // URLパラメーター ?v=id1,id2,id3 から動画を読み込む
 function loadFromParams(){
@@ -223,7 +224,7 @@ function checkAndAdd(){
   var itemsEl=document.getElementById('check-items');
   var summaryEl=document.getElementById('check-summary');
   var confirmBtn=document.getElementById('confirm-btn');
-  resultEl.style.display='block';confirmBtn.style.display='none';pendingOk=[];
+  resultEl.style.display='block';confirmBtn.style.display='none';pendingOk=[];pendingAll=ids.map(function(id){return{id:id,title:id};});
   itemsEl.innerHTML=ids.map(function(id){
     return '<div class="check-item" id="ci-'+id+'"><span class="check-badge badge-checking" id="cb-'+id+'">確認中</span><span class="check-title" id="ct-'+id+'">'+id+'</span></div>';
   }).join('');
@@ -247,9 +248,23 @@ function checkAndAdd(){
         summaryEl.innerHTML='<span class="sum-ok">✓ 追加可能: '+okCount+'本</span><span class="sum-ng">✕ 埋め込み不可: '+ngCount+'本</span>';
         btn.textContent='チェックして追加';btn.disabled=false;
         if(okCount>0)confirmBtn.style.display='block';
+        document.getElementById('confirm-all-btn').style.display='block';
       }
     }
   });
+}
+
+function confirmAddAll(){
+  pendingAll.forEach(function(v){if(!playlist.some(function(p){return p.id===v.id;}))playlist.push(v);});
+  pendingAll.forEach(function(v,i){fetchTitle(playlist.length-pendingAll.length+i,v.id);});
+  document.getElementById('bulk-input').value='';
+  document.getElementById('check-result').style.display='none';
+  document.getElementById('check-items').innerHTML='';
+  document.getElementById('confirm-btn').style.display='none';
+  document.getElementById('confirm-all-btn').style.display='none';
+  pendingOk=[];pendingAll=[];
+  renderPlaylist();updateShareUrl();
+  if(playlist.length>0&&currentIndex<0)playIndex(0);
 }
 
 function confirmAdd(){
